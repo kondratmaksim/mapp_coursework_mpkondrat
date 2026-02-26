@@ -1,15 +1,12 @@
 package com.example.diceroller.ui
 
 import android.app.Application
-import androidx.compose.foundation.text2.input.insert
 import androidx.lifecycle.*
-import androidx.lifecycle.asLiveData
-import androidx.lifecycle.viewModelScope
 import com.example.diceroller.data.*
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-class DiceRollViewModel(application: Application) : androidx.lifecycle.AndroidViewModel(application) {
+class DiceRollViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: DiceRollRepository
 
     init {
@@ -17,14 +14,12 @@ class DiceRollViewModel(application: Application) : androidx.lifecycle.AndroidVi
         repository = DiceRollRepository(dao)
     }
 
-    // История бросков
     val history: LiveData<List<DiceRoll>> = repository.allRolls.asLiveData()
 
-    // Текущее состояние (тип кубика, кол-во, результат)
-    val selectedDiceType = androidx.lifecycle.MutableLiveData(6)
-    val diceCount = androidx.lifecycle.MutableLiveData(1)
+    val selectedDiceType = MutableLiveData<Int>(6)
+    val diceCount = MutableLiveData<Int>(1)
 
-    private val _lastRoll = androidx.lifecycle.MutableLiveData<DiceRoll?>()
+    private val _lastRoll = MutableLiveData<DiceRoll?>()
     val lastRoll: LiveData<DiceRoll?> = _lastRoll
 
     fun rollDice() {
