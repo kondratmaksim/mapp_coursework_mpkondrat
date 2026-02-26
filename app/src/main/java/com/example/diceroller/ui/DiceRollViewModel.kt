@@ -1,27 +1,15 @@
 package com.example.diceroller.ui
 
 import android.app.Application
-import androidx.compose.runtime.State
-import androidx.compose.runtime.mutableStateOf
-import androidx.lifecycle.AndroidViewModel
+import androidx.compose.foundation.text2.input.insert
+import androidx.lifecycle.*
+import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
-import com.example.diceroller.data.AppDatabase
-import com.example.diceroller.data.DiceRoll
-import com.example.diceroller.data.DiceRollRepository
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import com.example.diceroller.data.*
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-data class RollUiState(
-    val selectedDiceType: Int = 6,
-    val diceCount: Int = 1,
-    val lastRollResults: List<Int> = emptyList(),
-    val lastRollSum: Int = 0
-)
-
-class DiceRollViewModel(application: Application) : AndroidViewModel(application) {
+class DiceRollViewModel(application: Application) : androidx.lifecycle.AndroidViewModel(application) {
     private val repository: DiceRollRepository
 
     init {
@@ -29,57 +17,40 @@ class DiceRollViewModel(application: Application) : AndroidViewModel(application
         repository = DiceRollRepository(dao)
     }
 
-    val history: StateFlow<List<DiceRoll>> = repository.allRolls.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = emptyList()
-    )
+    // История бросков
+    val history: LiveData<List<DiceRoll>> = repository.allRolls.asLiveData()
 
-    private val _uiState = mutableStateOf(RollUiState())
-    val uiState: State<RollUiState> = _uiState
+    // Текущее состояние (тип кубика, кол-во, результат)
+    val selectedDiceType = androidx.lifecycle.MutableLiveData(6)
+    val diceCount = androidx.lifecycle.MutableLiveData(1)
 
-    fun updateDiceType(type: Int) {
-        _uiState.value = _uiState.value.copy(selectedDiceType = type)
-    }
-
-    fun updateDiceCount(count: Int) {
-        _uiState.value = _uiState.value.copy(diceCount = count)
-    }
+    private val _lastRoll = androidx.lifecycle.MutableLiveData<DiceRoll?>()
+    val lastRoll: LiveData<DiceRoll?> = _lastRoll
 
     fun rollDice() {
-        val results = List(_uiState.value.diceCount) {
-            Random.nextInt(1, _uiState.value.selectedDiceType + 1)
-        }
-        val sum = results.sum()
+        val type = selectedDiceType.value ?: 6
+        val count = diceCount.value ?: 1
+        val resultsList = List(count) { Random.nextInt(1, type + 1) }
+        val sum = resultsList.sum()
 
-        _uiState.value = _uiState.value.copy(
-            lastRollResults = results,
-            lastRollSum = sum
+        val roll = DiceRoll(
+            diceType = type,
+            count = count,
+            results = resultsList.joinToString(", "),
+            sum = sum
         )
 
-        viewModelScope.launch {
-            val roll = DiceRoll(
-                diceType = _uiState.value.selectedDiceType,
-                count = _uiState.value.diceCount,
-                results = results.joinToString(","),
-                sum = sum
-            )
-            repository.insert(roll)
-        }
-    }
-
-    fun clearHistory() {
-        viewModelScope.launch {
-            repository.clearHistory()
-        }
+        _lastRoll.value = roll
+        viewModelScope.launch { repository.insert(roll) }
     }
 
     fun restoreRoll(roll: DiceRoll) {
-        _uiState.value = _uiState.value.copy(
-            selectedDiceType = roll.diceType,
-            diceCount = roll.count,
-            lastRollResults = roll.results.split(",").filter { it.isNotEmpty() }.map { it.toInt() },
-            lastRollSum = roll.sum
-        )
+        selectedDiceType.value = roll.diceType
+        diceCount.value = roll.count
+        _lastRoll.value = roll
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch { repository.clearHistory() }
     }
 }
